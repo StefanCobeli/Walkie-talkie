@@ -1,9 +1,13 @@
-import sun.applet.Main;
-
-import java.io.*;
-import java.net.*;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Scanner;
 import java.util.stream.Collectors;
 
 /*
@@ -66,8 +70,8 @@ public class Server {
                     break;
                 ClientThread newClient = new ClientThread(socket);  // make a thread of it
                 clientList.add(newClient);// save it in the ArrayList
-                System.out.println("The clients connected are:");
-                clientList.stream().forEach(clientThread -> System.out.println(clientThread.clientName + " " + clientThread.clientId));
+                //System.out.println("The clients connected are:");
+                //clientList.stream().forEach(clientThread -> System.out.println(clientThread.clientName + " " + clientThread.clientId));
                 newClient.writeMsg(String.valueOf(newClient.clientId));
                 newClient.start();
 
@@ -125,15 +129,15 @@ public class Server {
         }
     }
 
-    private void display(String msg, String clientName) {
+    private void display(String msg, int clientId) {
         String time = dataFormat.format(new Date()) + " " + msg;
         if(serverGUI == null) {
-            System.out.printf("%s hand was raised", clientName);
+            System.out.printf("%s hand was raised", clientId);
             System.out.println(time);
         }
         else {
-            serverGUI.appendEvent(clientName + "'s hand was raised");
-            serverGUI.appendRaisedHandClient(msg);
+            serverGUI.appendEvent(clientId + "'s hand was raised");
+            serverGUI.appendRaisedHandClient(msg, clientId);
             serverGUI.appendEvent(time + "\n");
         }
     }
@@ -276,7 +280,7 @@ public class Server {
                 switch(this.message.getType()) {
 
                     case Message.RAISEHAND:
-                        display(clientName + ": " + "raised the hand.");
+                        display(clientName + ": " + "raised the hand.", clientId);
                         raisedHand = true;
                         //serverGUI.appendRaisedHandClient(clientName);
                         waitForServerPermission();
@@ -389,7 +393,14 @@ public class Server {
         public synchronized void run() {
             Scanner scan = new Scanner(System.in);
             while (true) {
-                String selectedClientId = scan.nextLine();
+                String selectedClientId;
+                if (serverGUI==null) {
+                    System.out.println("etwas");
+                    selectedClientId = scan.nextLine();
+                }
+                else{
+                    return;
+                }
                 if (selectedClientId != null) {
                     if(clientHasRaisedHand(selectedClientId)) {
                         ClientThread selectedClient = clientList.stream()
@@ -428,7 +439,7 @@ public class Server {
             return false;
         }
 
-        void sendAcceptance(String clientId) {
+        public void sendAcceptance(String clientId) {
             //sOutput = new ObjectOutputStream(serverSocket.);
             ClientThread clientThread = clientList.stream()
                     .filter(cl -> (String.valueOf(cl.clientId).equals(clientId)))
