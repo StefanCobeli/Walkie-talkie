@@ -8,12 +8,12 @@ import java.util.*;
 public class Client  {
 
     // for I/O
-    private ObjectInputStream sInput;		// to read from the socket
-    private ObjectOutputStream sOutput;		// to write on the socket
+    private ObjectInputStream inputStream;		// to read from the socket
+    private ObjectOutputStream outputStream;		// to write on the socket
     private Socket socket;
 
     // if I use a GUI or not
-    private ClientGUI cg;
+    private ClientGUI clientGUI;
 
     // the server, the port and the username
     private String server, username;
@@ -27,21 +27,12 @@ public class Client  {
      *  port: the port number
      *  username: the username
      */
-    Client(String server, int port, String username) {
-        // which calls the common constructor with the GUI set to null
-        this(server, port, username, null);
-    }
-
-    /*
-     * Constructor call when used from a GUI
-     * in console mode the ClienGUI parameter is null
-     */
-    Client(String server, int port, String username, ClientGUI cg) {
+    Client(String server, int port, String username, ClientGUI clientGUI) {
         this.server = server;
         this.port = port;
         this.username = username;
         // save if we are in GUI mode or not
-        this.cg = cg;
+        this.clientGUI = clientGUI;
         loadProperties();
     }
 
@@ -56,7 +47,6 @@ public class Client  {
             // load a properties file
             prop.load(input);
             timeout = Long.valueOf(prop.getProperty("timeout"));
-            System.out.println(timeout);
 
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -91,8 +81,8 @@ public class Client  {
 		/* Creating both Data Stream */
         try
         {
-            sInput  = new ObjectInputStream(socket.getInputStream());
-            sOutput = new ObjectOutputStream(socket.getOutputStream());
+            inputStream = new ObjectInputStream(socket.getInputStream());
+            outputStream = new ObjectOutputStream(socket.getOutputStream());
         }
         catch (IOException eIO) {
             display("Exception creating new Input/output Streams: " + eIO);
@@ -103,10 +93,10 @@ public class Client  {
         serverListener = new ListenFromServer();
         serverListener.start();
         // Send our username to the server this is the only message that we
-        // will send as a String. All other messages will be ChatMessage objects
+        // will send as a String. All other messages will be Message objects
         try
         {
-            sOutput.writeObject(username);
+            outputStream.writeObject(username);
         }
         catch (IOException eIO) {
             display("Exception doing login : " + eIO);
@@ -121,18 +111,18 @@ public class Client  {
      * To send a message to the console or the GUI
      */
     private void display(String msg) {
-        if(cg == null)
+        if(clientGUI == null)
             System.out.println(msg);      // println in console mode
         else
-            cg.append(msg + "\n");		// append to the ClientGUI JTextArea (or whatever)
+            clientGUI.append(msg + "\n");		// append to the ClientGUI JTextArea (or whatever)
     }
 
     /*
      * To send a message to the server
      */
-    void sendMessage(ChatMessage msg) {
+    void sendMessage(Message msg) {
         try {
-            sOutput.writeObject(msg);
+            outputStream.writeObject(msg);
         }
         catch(IOException e) {
             display("Exception writing to server: " + e);
@@ -145,11 +135,11 @@ public class Client  {
      */
     private void disconnect() {
         try {
-            if(sInput != null) sInput.close();
+            if(inputStream != null) inputStream.close();
         }
         catch(Exception e) {} // not much else I can do
         try {
-            if(sOutput != null) sOutput.close();
+            if(outputStream != null) outputStream.close();
         }
         catch(Exception e) {} // not much else I can do
         try{
@@ -158,90 +148,9 @@ public class Client  {
         catch(Exception e) {} // not much else I can do
 
         // inform the GUI
-        if(cg != null)
-            cg.connectionFailed();
+        if(clientGUI != null)
+            clientGUI.connectionFailed();
 
-    }
-    /*
-     * To start the Client in console mode use one of the following command
-     * > java Client
-     * > java Client username
-     * > java Client username portNumber
-     * > java Client username portNumber serverAddress
-     * at the console prompt
-     * If the portNumber is not specified 1500 is used
-     * If the serverAddress is not specified "localHost" is used
-     * If the username is not specified "Anonymous" is used
-     * > java Client
-     * is equivalent to
-     * > java Client Anonymous 1500 localhost
-     * are eqquivalent
-     *
-     * In console mode, if an error occurs the program simply stops
-     * when a GUI id used, the GUI is informed of the disconnection
-     */
-    public static void main(String[] args) {
-        // default values
-        int portNumber = 1600;
-        String serverAddress = "localhost";
-        String userName = "Anonymous";
-
-        // depending of the number of arguments provided we fall through
-        switch(args.length) {
-            // > javac Client username portNumber serverAddr
-            case 3:
-                serverAddress = args[2];
-                // > javac Client username portNumber
-            case 2:
-                try {
-                    portNumber = Integer.parseInt(args[1]);
-                }
-                catch(Exception e) {
-                    System.out.println("Invalid port number.");
-                    System.out.println("Usage is: > java Client [username] [portNumber] [serverAddress]");
-                    return;
-                }
-                // > javac Client username
-            case 1:
-                userName = args[0];
-                // > java Client
-            case 0:
-                break;
-            // invalid number of arguments
-            default:
-                System.out.println("Usage is: > java Client [username] [portNumber] {serverAddress]");
-                return;
-        }
-        // create the Client object
-        Client client = new Client(serverAddress, portNumber, userName);
-        // test if we can start the connection to the Server
-        // if it failed nothing we can do
-        if(!client.start())
-            return;
-
-        // wait for messages from user
-        Scanner scan = new Scanner(System.in);
-        // loop forever for message from the user
-        while(true) {
-            System.out.print("> ");
-            // read message from user
-            String msg = scan.nextLine();
-            // logout if message is LOGOUT
-            if(msg.equalsIgnoreCase("LOGOUT")) {
-                client.sendMessage(new ChatMessage(ChatMessage.LOGOUT, ""));
-                // break to do the disconnect
-                break;
-            }
-            // message WhoIsIn
-            else if(msg.equalsIgnoreCase("WHOISIN")) {
-                client.sendMessage(new ChatMessage(ChatMessage.WHOISIN, ""));
-            }
-            else {				// default to ordinary message
-                client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, msg));
-            }
-        }
-        // done disconnect
-        client.disconnect();
     }
 
     /*
@@ -253,48 +162,39 @@ public class Client  {
         public void run() {
             while(true) {
                 try {
-//                    String msg = (String) sInput.readObject();
-                    // if console mode print the message and add back the prompt
-//                    if(cg == null) {
-//                        System.out.println(msg);
-//                        System.out.print("> ");
-//                    }
-//                    else {
-//                        cg.append(msg);
-//                    }
-
-                    ChatMessage cm = (ChatMessage) sInput.readObject();
-                    if(cg == null){
+                    Message cm = (Message) inputStream.readObject();
+                    if(clientGUI == null){
                         System.out.println(cm.getMessage());
                         continue;
                     }
-                    if(cm.getType() == ChatMessage.PERMISSION) {
-                        cg.setPermissionToSpeak(true);
-                        cg.messageField.setEnabled(true);
-                        cg.messageField.setText("");
-                        cg.bowHandButton.setEnabled(true);
+                    if(cm.getType() == Message.PERMISSION) {
+                        clientGUI.setPermissionToSpeak(true);
+                        clientGUI.messageField.setEnabled(true);
+                        clientGUI.messageField.setText("");
+                        clientGUI.bowHandButton.setEnabled(true);
 
                         synchronized (this){
                             wait(timeout);
                         }
                         if (clientWasKicked) {
-                            String timeoutMessage = cg.client + " was kicked!";
-                            cg.client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, timeoutMessage));
-                            cg.messageField.setText("You  must raise your hand to speak!");
-                            cg.messageField.setEnabled(false);
-                            cg.raiseHandButton.setEnabled(true);
+                            String timeoutMessage = clientGUI.client.username + " was kicked for untyping!";
+                            clientGUI.client.sendMessage(new Message(Message.MESSAGE, timeoutMessage));
+                            clientGUI.messageField.setText("You  must raise your hand to speak!");
+                            clientGUI.messageField.setEnabled(false);
+                            clientGUI.raiseHandButton.setEnabled(true);
+                            clientGUI.bowHandButton.setEnabled(false);
                         }
                         clientWasKicked = true;
                     }
                     else {
-                        cg.append(cm.getMessage());
+                        clientGUI.append(cm.getMessage());
                     }
                 }
 
                 catch(IOException e) {
                     display("Server has close the connection: " + e);
-                    if(cg != null)
-                        cg.connectionFailed();
+                    if(clientGUI != null)
+                        clientGUI.connectionFailed();
                     break;
                 }
                 // can't happen with a String object but need the catch anyhow

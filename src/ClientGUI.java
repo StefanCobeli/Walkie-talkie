@@ -1,6 +1,9 @@
+import com.oblac.nomen.Nomen;
+
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 
 
 /*
@@ -10,13 +13,11 @@ public class ClientGUI extends JFrame implements ActionListener {
 
     private static final long serialVersionUID = 1L;
     // will first hold "Username:", later on "Enter message"
-    private JLabel label;
+    private JLabel userNameLabel;
     // to hold the Username and later on the messages
-    private JTextField tf;
+    private JTextField userNameField;
     // to hold the server address an the port number
     private JTextField tfServer, tfPort;
-    // to Logout and get the list of the users
-    private JButton login, logout, whoIsIn;
 
     public JButton raiseHandButton, bowHandButton;
     public JTextField messageField;
@@ -37,7 +38,6 @@ public class ClientGUI extends JFrame implements ActionListener {
     }
     // Constructor connection receiving a socket number
     ClientGUI(String host, int port) {
-
         super("Chat Client");
         defaultPort = port;
         defaultHost = host;
@@ -59,12 +59,22 @@ public class ClientGUI extends JFrame implements ActionListener {
         // adds the Server an port field to the GUI
         northPanel.add(serverAndPort);
 
+        Nomen nomen = new Nomen();
+        String userName = nomen.person().get();
+        userName = userName.substring(0, 1).toUpperCase() + userName.substring(1);
+
         // the Label and the TextField
-        label = new JLabel("Enter your username below", SwingConstants.CENTER);
-        northPanel.add(label);
-        tf = new JTextField("Anonymous");
-        tf.setBackground(Color.WHITE);
-        northPanel.add(tf);
+        userNameLabel = new JLabel("User name: " + userName, SwingConstants.CENTER);
+
+        //userNameLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        northPanel.add(userNameLabel);
+
+
+
+        userNameField = new JTextField(userName);
+        userNameField.setBackground(Color.WHITE);
+        userNameField.setEnabled(false);
+        //northPanel.add(userNameField);
         add(northPanel, BorderLayout.NORTH);
 
         // The CenterPanel which is the chat room
@@ -74,15 +84,7 @@ public class ClientGUI extends JFrame implements ActionListener {
         ta.setEditable(false);
         add(centerPanel, BorderLayout.CENTER);
 
-        // the 3 buttons
-        login = new JButton("Login");
-        login.addActionListener(this);
-        logout = new JButton("Logout");
-        logout.addActionListener(this);
-        logout.setEnabled(false);		// you have to login before being able to logout
-        whoIsIn = new JButton("Who is in");
-        whoIsIn.addActionListener(this);
-        whoIsIn.setEnabled(false);		// you have to login before being able to Who is in
+        // the 3 buttons-
 
         messageField = new JTextField("You  must raise your hand to speak!");
         messageField.setEnabled(false);
@@ -101,18 +103,13 @@ public class ClientGUI extends JFrame implements ActionListener {
         southPanel.add(raiseHandButton);
         southPanel.add(bowHandButton);
 
-
-
-
-        southPanel.add(login);
-        southPanel.add(logout);
-        southPanel.add(whoIsIn);
         add(southPanel, BorderLayout.SOUTH);
 
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(600, 600);
         setVisible(true);
-        //tf.requestFocus();
+        //userNameField.requestFocus();
+        connectToServer();
 
     }
 
@@ -122,13 +119,9 @@ public class ClientGUI extends JFrame implements ActionListener {
         ta.setCaretPosition(ta.getText().length() - 1);
     }
     // called by the GUI is the connection failed
-    // we reset our buttons, label, textfield
+    // we reset our buttons, userNameLabel, textfield
     void connectionFailed() {
-        login.setEnabled(true);
-        logout.setEnabled(false);
-        whoIsIn.setEnabled(false);
-        label.setText("Enter your username below");
-        tf.setText("Anonymous");
+
         // reset port number and host name as a construction time
         tfPort.setText("" + defaultPort);
         tfServer.setText(defaultHost);
@@ -136,75 +129,15 @@ public class ClientGUI extends JFrame implements ActionListener {
         tfServer.setEditable(false);
         tfPort.setEditable(false);
         // don't react to a <CR> after the username
-        tf.removeActionListener(this);
+        userNameField.removeActionListener(this);
         messageField.removeActionListener(this);
         connected = false;
     }
 
-    /*
-    * Button or JTextField clicked
-    */
-    public void actionPerformed(ActionEvent e) {
-        Object o = e.getSource();
-        // if it is the Logout button
-        if(o == logout) {
-            client.sendMessage(new ChatMessage(ChatMessage.LOGOUT, ""));
-            return;
-        }
-        // if it the who is in button
-        if(o == whoIsIn) {
-            client.sendMessage(new ChatMessage(ChatMessage.WHOISIN, ""));
-            return;
-        }
-
-        if(o == raiseHandButton){
-            raiseHandButton.setEnabled(false);
-            bowHandButton.setEnabled(true);
-            client.sendMessage(new ChatMessage(ChatMessage.RAISEHAND, ""));
-            return;
-        }
-
-        if(o == bowHandButton){
-            client.sendMessage(new ChatMessage(ChatMessage.BOWHAND, ""));
-
-            messageField.setEnabled(false);
-            messageField.setText("You  must raise your hand to speak!");
-            raiseHandButton.setEnabled(true);
-            permissionToSpeak = false;
-            this.client.serverListener.clientWasKicked = false;
-            synchronized (this.client.serverListener){
-                this.client.serverListener.notify();
-            }
-            bowHandButton.setEnabled(false);
-            return;
-        }
-
-        if(permissionToSpeak){
-            client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, messageField.getText()));
-
-            messageField.setEnabled(false);
-            messageField.setText("You  must raise your hand to speak!");
-            raiseHandButton.setEnabled(true);
-            permissionToSpeak = false;
-            this.client.serverListener.clientWasKicked = false;
-            synchronized (this.client.serverListener){
-                this.client.serverListener.notify();
-            }
-            return;
-        }
-
-        // ok it is coming from the JTextField
-        if(connected) {
-            // just have to send the message
-            client.sendMessage(new ChatMessage(ChatMessage.MESSAGE, tf.getText()));
-            tf.setText("");
-            return;
-        }
-
-
-        if(o == login) {
+    void connectToServer(){
+        {
             // ok it is a connection request
-            String username = tf.getText().trim();
+            String username = userNameField.getText().trim();
             // empty username ignore it
             if(username.length() == 0)
                 return;
@@ -229,23 +162,54 @@ public class ClientGUI extends JFrame implements ActionListener {
             // test if we can start the Client
             if(!client.start())
                 return;
-            tf.setText("");
-            label.setText("Enter your message below");
             connected = true;
 
-            // disable login button
-            login.setEnabled(false);
-            // enable the 2 buttons
-            logout.setEnabled(true);
-            whoIsIn.setEnabled(true);
             // disable the Server and Port JTextField
             tfServer.setEditable(false);
             tfPort.setEditable(false);
             // Action listener for when the user enter a message
-            tf.addActionListener(this);
+            userNameField.addActionListener(this);
             messageField.addActionListener(this);
         }
+    }
 
+    void setGUIInitialConfiguration(){
+        messageField.setEnabled(false);
+        messageField.setText("You  must raise your hand to speak!");
+        raiseHandButton.setEnabled(true);
+        bowHandButton.setEnabled(false);
+        permissionToSpeak = false;
+        this.client.serverListener.clientWasKicked = false;
+        synchronized (this.client.serverListener){
+            this.client.serverListener.notify();
+        }
+    }
+    /*
+    * Button or JTextField clicked
+    */
+    public void actionPerformed(ActionEvent e) {
+        Object o = e.getSource();
+
+        if(o == raiseHandButton){
+            raiseHandButton.setEnabled(false);
+            bowHandButton.setEnabled(true);
+            client.sendMessage(new Message(Message.RAISEHAND, ""));
+            return;
+        }
+
+        if(o == bowHandButton){
+            client.sendMessage(new Message(Message.BOWHAND, ""));
+
+            setGUIInitialConfiguration();
+            return;
+        }
+
+        if(permissionToSpeak){
+            client.sendMessage(new Message(Message.MESSAGE, messageField.getText()));
+
+            setGUIInitialConfiguration();
+            return;
+        }
     }
 
     // to start the whole thing the server

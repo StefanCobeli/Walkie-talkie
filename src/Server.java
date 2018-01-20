@@ -10,13 +10,11 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public class Server {
     // a unique ID for each connection
-    private static int uniqueId;
+    private static int idIncrementer;
     // an ArrayList to keep the list of the Client
     private ArrayList<ClientThread> clientList;
-    // if I am in a GUI
-    private ServerGUI sg;
     // to display time
-    private SimpleDateFormat sdf;
+    private SimpleDateFormat dateFormat;
     // the port number to listen for connection
     private int port;
     // the boolean that will be turned of to stop the server
@@ -31,16 +29,10 @@ public class Server {
      *  in console
      */
     public Server(int port) {
-        this(port, null);
-    }
-
-    public Server(int port, ServerGUI sg) {
-        // GUI or not
-        this.sg = sg;
         // the port
         this.port = port;
         // to display hh:mm:ss
-        sdf = new SimpleDateFormat("HH:mm:ss");
+        dateFormat = new SimpleDateFormat("HH:mm:ss");
         // ArrayList for the Client list
         clientList = new ArrayList<ClientThread>();
         waitingQueue = new LinkedBlockingQueue<ClientThread>();
@@ -64,19 +56,19 @@ public class Server {
                 // if I was asked to stop
                 if(!keepGoing)
                     break;
-                ClientThread t = new ClientThread(socket);  // make a thread of it
-                clientList.add(t);									// save it in the ArrayList
-                t.start();
+                ClientThread clientThread = new ClientThread(socket);  // make a thread of it
+                clientList.add(clientThread);									// save it in the ArrayList
+                clientThread.start();
             }
             // I was asked to stop
             try {
                 serverSocket.close();
                 for(int i = 0; i < clientList.size(); ++i) {
-                    ClientThread tc = clientList.get(i);
+                    ClientThread clientThread = clientList.get(i);
                     try {
-                        tc.sInput.close();
-                        tc.sOutput.close();
-                        tc.socket.close();
+                        clientThread.sInput.close();
+                        clientThread.sOutput.close();
+                        clientThread.socket.close();
                     }
                     catch(IOException ioE) {
                         // not much I can do
@@ -89,47 +81,27 @@ public class Server {
         }
         // something went bad
         catch (IOException e) {
-            String msg = sdf.format(new Date()) + " Exception on new ServerSocket: " + e + "\n";
+            String msg = dateFormat.format(new Date()) + " Exception on new ServerSocket: " + e + "\n";
             display(msg);
         }
     }
-    /*
-     * For the GUI to stop the server
-     */
-    protected void stop() {
-        keepGoing = false;
-        // connect to myself as Client to exit statement
-        // Socket socket = serverSocket.accept();
-        try {
-            new Socket("localhost", port);
-        }
-        catch(Exception e) {
-            // nothing I can really do
-        }
-    }
+
     /*
      * Display an event (not a message) to the console or the GUI
      */
     private void display(String msg) {
-        String time = sdf.format(new Date()) + " " + msg;
-        if(sg == null)
-            System.out.println(time);
-        else
-            sg.appendEvent(time + "\n");
+        String time = dateFormat.format(new Date()) + " " + msg;
+        System.out.println(time);
     }
     /*
      *  to broadcast a message to all Clients
      */
     private synchronized void broadcast(String message) {
         // add HH:mm:ss and \n to the message
-        String time = sdf.format(new Date());
+        String time = dateFormat.format(new Date());
         String messageLf = time + " " + message + "\n";
         // display message on console or GUI
-        if(sg == null)
-            System.out.print(messageLf);
-        else
-            sg.appendRoom(messageLf);     // append in the room window
-
+        System.out.print(messageLf);
         // we loop in reverse order in case we would have to remove a Client
         // because it has disconnected
         for(int i = clientList.size(); --i >= 0;) {
@@ -197,7 +169,7 @@ public class Server {
         // the Username of the Client
         String username;
         // the only type of message a will receive
-        ChatMessage cm;
+        Message message;
         // the date I connect
         String date;
         boolean hasRaisedHand = false;
@@ -205,7 +177,7 @@ public class Server {
         // Constructore
         ClientThread(Socket socket) {
             // a unique id
-            id = ++uniqueId;
+            id = ++idIncrementer;
             this.socket = socket;
 			/* Creating both Data Stream */
             System.out.println("Thread trying to create Object Input/Output Streams");
@@ -236,7 +208,7 @@ public class Server {
             while(keepGoing) {
                 // read a String (which is an object)
                 try {
-                    cm = (ChatMessage) sInput.readObject();
+                    message = (Message) sInput.readObject();
                 }
                 catch (IOException e) {
                     display(username + " Exception reading Streams: " + e);
@@ -245,12 +217,12 @@ public class Server {
                 catch(ClassNotFoundException e2) {
                     break;
                 }
-                // the messaage part of the ChatMessage
-                String message = cm.getMessage();
+                // the messaage part of the Message
+                String message = this.message.getMessage();
 
                 // Switch on the type of message receive
-                switch(cm.getType()) {
-                    case ChatMessage.RAISEHAND:
+                switch(this.message.getType()) {
+                    case Message.RAISEHAND:
                         //TODO!!!!!!!!!!!!!!!!!!
                         //optionally check if ID is already in queue
                         //waitingQueue.add(Integer.valueOf(this.id));
@@ -258,13 +230,13 @@ public class Server {
                         try {
                             waitingQueue.put(this);
                             if (waitingQueue.size() == 1){
-                                sOutput.writeObject(new ChatMessage(ChatMessage.PERMISSION, ""));
+                                sOutput.writeObject(new Message(Message.PERMISSION, ""));
                                 broadcast(this.username + " is typing!");
                             }
                             else{
                                 synchronized (this){
                                     wait();
-                                    sOutput.writeObject(new ChatMessage(ChatMessage.PERMISSION, ""));
+                                    sOutput.writeObject(new Message(Message.PERMISSION, ""));
                                     broadcast(this.username + " is typing!");
                                 }
                             }
@@ -277,8 +249,8 @@ public class Server {
 
                         hasRaisedHand = true;
                         break;
-                    case ChatMessage.BOWHAND:
-                        broadcast(username + ": bowed the hand!");
+                    case Message.BOWHAND:
+                        broadcast(username + " bowed the hand!");
                         waitingQueue.remove(this);
                         hasRaisedHand = false;
                         if (waitingQueue.size() >= 1){
@@ -288,9 +260,9 @@ public class Server {
                             }
                         }
                         break;
-                    case ChatMessage.MESSAGE:
+                    case Message.MESSAGE:
                         broadcast(username + ": " + message);
-                    //case ChatMessage.BOWHAND:
+                    //case Message.BOWHAND:
                         waitingQueue.remove(this);
                         hasRaisedHand = false;
                         if (waitingQueue.size() >= 1){
@@ -298,18 +270,6 @@ public class Server {
                             synchronized (nextClient){
                                 nextClient.notify();
                             }
-                        }
-                        break;
-                    case ChatMessage.LOGOUT:
-                        display(username + " disconnected with a LOGOUT message.");
-                        keepGoing = false;
-                        break;
-                    case ChatMessage.WHOISIN:
-                        writeMsg("List of the users connected at " + sdf.format(new Date()) + "\n");
-                        // scan clientList the users connected
-                        for(int i = 0; i < clientList.size(); ++i) {
-                            ClientThread ct = clientList.get(i);
-                            writeMsg((i+1) + ") " + ct.username + " since " + ct.date);
                         }
                         break;
                 }
@@ -348,7 +308,7 @@ public class Server {
             }
             // write the message to the stream
             try {
-                sOutput.writeObject(new ChatMessage(ChatMessage.MESSAGE, msg));
+                sOutput.writeObject(new Message(Message.MESSAGE, msg));
             }
             // if an error occurs, do not abort just inform the user
             catch(IOException e) {

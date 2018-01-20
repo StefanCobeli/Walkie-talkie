@@ -5,7 +5,7 @@ import java.io.*;
  * When talking from a Java Client to a Java Server a lot easier to pass Java objects, no
  * need to count bytes or to wait for a line feed at the end of the frame
  */
-public class ChatMessage implements Serializable {
+public class Message implements Serializable {
 
     protected static final long serialVersionUID = 1112122200L;
 
@@ -13,12 +13,12 @@ public class ChatMessage implements Serializable {
     // WHOISIN to receive the list of the users connected
     // MESSAGE an ordinary message
     // LOGOUT to disconnect from the Server
-    static final int WHOISIN = 0, MESSAGE = 1, LOGOUT = 2, RAISEHAND = 3, BOWHAND = 4, PERMISSION = 5;
+    static final int MESSAGE = 0, RAISEHAND = 1, BOWHAND = 2, PERMISSION = 3;
     private int type;
     private String message;
 
     // constructor
-    ChatMessage(int type, String message) {
+    Message(int type, String message) {
         this.type = type;
         this.message = message;
     }
