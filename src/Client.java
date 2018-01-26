@@ -21,12 +21,6 @@ public class Client  {
     public ListenFromServer serverListener;
     private long timeout;
 
-    /*
-     *  Constructor called by console mode
-     *  server: the server address
-     *  port: the port number
-     *  username: the username
-     */
     Client(String server, int port, String username, ClientGUI clientGUI) {
         this.server = server;
         this.port = port;
@@ -69,7 +63,6 @@ public class Client  {
         try {
             socket = new Socket(server, port);
         }
-        // if it failed not much I can so
         catch(Exception ec) {
             display("Error connectiong to server:" + ec);
             return false;
@@ -103,7 +96,6 @@ public class Client  {
             disconnect();
             return false;
         }
-        // success we inform the caller that it worked
         return true;
     }
 
@@ -137,15 +129,15 @@ public class Client  {
         try {
             if(inputStream != null) inputStream.close();
         }
-        catch(Exception e) {} // not much else I can do
+        catch(Exception e) {}
         try {
             if(outputStream != null) outputStream.close();
         }
-        catch(Exception e) {} // not much else I can do
+        catch(Exception e) {}
         try{
             if(socket != null) socket.close();
         }
-        catch(Exception e) {} // not much else I can do
+        catch(Exception e) {}
 
         // inform the GUI
         if(clientGUI != null)
@@ -154,8 +146,7 @@ public class Client  {
     }
 
     /*
-     * a class that waits for the message from the server and append them to the JTextArea
-     * if we have a GUI or simply System.out.println() it in console mode
+     * a class that waits for the message from the server
      */
     class ListenFromServer extends Thread {
         public boolean clientWasKicked = true;
@@ -197,7 +188,6 @@ public class Client  {
                         clientGUI.connectionFailed();
                     break;
                 }
-                // can't happen with a String object but need the catch anyhow
                 catch(ClassNotFoundException e2) {
                 } catch (InterruptedException e) {
                     e.printStackTrace();

@@ -11,7 +11,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class Server {
     // a unique ID for each connection
     private static int idIncrementer;
-    // an ArrayList to keep the list of the Client
+    // an ArrayList to keep the list of Clients
     private ArrayList<ClientThread> clientList;
     // to display time
     private SimpleDateFormat dateFormat;
@@ -22,12 +22,10 @@ public class Server {
 
     //private Queue<Integer> waitingQueue;
     //private TreeMap<Long, Integer> waitingQueue;
+    //Waiting list for Clients to speak
     private BlockingQueue<ClientThread> waitingQueue;
 
-    /*
-     *  server constructor that receive the port to listen to for connection as parameter
-     *  in console
-     */
+    //Server constructor
     public Server(int port) {
         // the port
         this.port = port;
@@ -49,15 +47,14 @@ public class Server {
             // infinite loop to wait for connections
             while(keepGoing)
             {
-                // format message saying we are waiting
                 display("Server waiting for Clients on port " + port + ".");
-
                 Socket socket = serverSocket.accept();  	// accept connection
+
                 // if I was asked to stop
                 if(!keepGoing)
                     break;
-                ClientThread clientThread = new ClientThread(socket);  // make a thread of it
-                clientList.add(clientThread);									// save it in the ArrayList
+                ClientThread clientThread = new ClientThread(socket);  // make a manager thread of it
+                clientList.add(clientThread);						  // save it in the ArrayList
                 clientThread.start();
             }
             // I was asked to stop
@@ -71,7 +68,7 @@ public class Server {
                         clientThread.socket.close();
                     }
                     catch(IOException ioE) {
-                        // not much I can do
+                        ioE.printStackTrace();
                     }
                 }
             }
@@ -86,15 +83,13 @@ public class Server {
         }
     }
 
-    /*
-     * Display an event (not a message) to the console or the GUI
-     */
     private void display(String msg) {
         String time = dateFormat.format(new Date()) + " " + msg;
         System.out.println(time);
     }
+
     /*
-     *  to broadcast a message to all Clients
+     *  broadcast a message to all Clients
      */
     private synchronized void broadcast(String message) {
         // add HH:mm:ss and \n to the message
@@ -114,7 +109,7 @@ public class Server {
         }
     }
 
-    // for a client who logoff using the LOGOUT message
+    // for a closed client
     synchronized void remove(int id) {
         // scan the array list until we found the Id
         for(int i = 0; i < clientList.size(); ++i) {
@@ -127,12 +122,7 @@ public class Server {
         }
     }
 
-    /*
-     *  To run as a console application just open a console window and:
-     * > java Server
-     * > java Server portNumber
-     * If the port number is not specified 1500 is used
-     */
+
     public static void main(String[] args) {
         // start server on port 1500 unless a PortNumber is specified
         int portNumber = 1600;
@@ -164,7 +154,7 @@ public class Server {
         Socket socket;
         ObjectInputStream sInput;
         ObjectOutputStream sOutput;
-        // my unique id (easier for deconnection)
+        // my unique id
         int id;
         // the Username of the Client
         String username;
@@ -174,7 +164,7 @@ public class Server {
         String date;
         boolean hasRaisedHand = false;
 
-        // Constructore
+        // Constructor
         ClientThread(Socket socket) {
             // a unique id
             id = ++idIncrementer;
@@ -194,8 +184,6 @@ public class Server {
                 display("Exception creating new Input/output Streams: " + e);
                 return;
             }
-            // have to catch ClassNotFoundException
-            // but I read a String, I am sure it will work
             catch (ClassNotFoundException e) {
             }
             date = new Date().toString() + "\n";
@@ -217,16 +205,11 @@ public class Server {
                 catch(ClassNotFoundException e2) {
                     break;
                 }
-                // the messaage part of the Message
                 String message = this.message.getMessage();
 
                 // Switch on the type of message receive
                 switch(this.message.getType()) {
                     case Message.RAISEHAND:
-                        //TODO!!!!!!!!!!!!!!!!!!
-                        //optionally check if ID is already in queue
-                        //waitingQueue.add(Integer.valueOf(this.id));
-                        //Long.valueOf(System.currentTimeMillis()),
                         try {
                             waitingQueue.put(this);
                             if (waitingQueue.size() == 1){
@@ -262,7 +245,6 @@ public class Server {
                         break;
                     case Message.MESSAGE:
                         broadcast(username + ": " + message);
-                    //case Message.BOWHAND:
                         waitingQueue.remove(this);
                         hasRaisedHand = false;
                         if (waitingQueue.size() >= 1){
@@ -298,7 +280,7 @@ public class Server {
         }
 
         /*
-         * Write a String to the Client output stream
+         * Write a Message to the Client output stream
          */
         private boolean writeMsg(String msg) {
             // if Client is still connected send the message to it
